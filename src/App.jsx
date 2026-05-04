@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { AdminDataProvider } from '@/lib/AdminDataContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ErrorBoundary from '@/lib/error-boundary';
+import { Analytics } from '@vercel/analytics/react';
 
 import AppLayout from './components/layout/AppLayout';
 import Home from './pages/Home';
@@ -75,6 +76,7 @@ function App() {
               <AuthenticatedApp />
             </Router>
             <Toaster />
+            <Analytics />
           </QueryClientProvider>
         </AdminDataProvider>
       </AuthProvider>
