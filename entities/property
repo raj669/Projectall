@@ -1,0 +1,107 @@
+{
+  "name": "Property",
+  "type": "object",
+  "properties": {
+    "property_id": {
+      "type": "number",
+      "description": "Unique property ID"
+    },
+    "title": {
+      "type": "string",
+      "description": "Property title"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "apartment",
+        "house",
+        "villa",
+        "commercial",
+        "land"
+      ],
+      "description": "Property type"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "sale",
+        "rent"
+      ],
+      "description": "Sale or rent"
+    },
+    "price": {
+      "type": "number",
+      "description": "Price in NPR"
+    },
+    "bedrooms": {
+      "type": "number",
+      "description": "Number of bedrooms"
+    },
+    "bathrooms": {
+      "type": "number",
+      "description": "Number of bathrooms"
+    },
+    "area": {
+      "type": "number",
+      "description": "Area size"
+    },
+    "area_unit": {
+      "type": "string",
+      "enum": [
+        "sqft",
+        "aana"
+      ],
+      "description": "Area unit"
+    },
+    "city": {
+      "type": "string",
+      "description": "City name"
+    },
+    "district": {
+      "type": "string",
+      "description": "District name"
+    },
+    "address": {
+      "type": "string",
+      "description": "Full address"
+    },
+    "description": {
+      "type": "string",
+      "description": "Property description"
+    },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Property features list"
+    },
+    "images": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Image URLs"
+    },
+    "contact_phone": {
+      "type": "string",
+      "description": "Contact phone number"
+    },
+    "listed_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date listed"
+    },
+    "featured": {
+      "type": "boolean",
+      "description": "Featured property flag"
+    }
+  },
+  "required": [
+    "title",
+    "type",
+    "status",
+    "price",
+    "city"
+  ]
+}
