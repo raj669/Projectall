@@ -1,5 +1,6 @@
 import { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import apiClient, { setAccessToken, getAccessToken } from './apiClient';
+import { secureStorage, rateLimit } from './securityService';
 
 const AuthContext = createContext();
 
@@ -22,6 +23,8 @@ export const AuthProvider = ({ children }) => {
       setUser(response.data.user);
       setIsAuthenticated(true);
       setAuthError(null);
+      // Store user data securely
+      secureStorage.storeUserData(response.data.user);
     } catch (error) {
       // No valid session
       setIsAuthenticated(false);
@@ -35,13 +38,29 @@ export const AuthProvider = ({ children }) => {
   const register = useCallback(async (name, email, password) => {
     try {
       setAuthError(null);
+      
+      // Check rate limiting
+      if (!rateLimit.check()) {
+        const remaining = rateLimit.getRemaining();
+        const message = remaining === 0 
+          ? 'Too many registration attempts. Please try again in 1 hour.'
+          : `Too many attempts. Try again later. (${remaining} attempts remaining)`;
+        throw new Error(message);
+      }
+
       const response = await apiClient.post('/auth/register', { name, email, password });
       setAccessToken(response.data.accessToken);
       setUser(response.data.user);
       setIsAuthenticated(true);
+      
+      // Store user data securely
+      secureStorage.storeUserData(response.data.user);
+      rateLimit.reset(); // Reset rate limit on success
+      
       return response.data;
     } catch (error) {
-      const message = error.response?.data?.error || 'Registration failed';
+      rateLimit.increment(); // Track failed attempts
+      const message = error.response?.data?.error || error.message || 'Registration failed';
       setAuthError(message);
       throw new Error(message);
     }
@@ -50,13 +69,25 @@ export const AuthProvider = ({ children }) => {
   const login = useCallback(async (email, password) => {
     try {
       setAuthError(null);
+      
+      // Check rate limiting for login
+      if (!rateLimit.check()) {
+        throw new Error('Too many login attempts. Please try again in 1 hour.');
+      }
+
       const response = await apiClient.post('/auth/login', { email, password });
       setAccessToken(response.data.accessToken);
       setUser(response.data.user);
       setIsAuthenticated(true);
+      
+      // Store user data securely
+      secureStorage.storeUserData(response.data.user);
+      rateLimit.reset();
+      
       return response.data;
     } catch (error) {
-      const message = error.response?.data?.error || 'Login failed';
+      rateLimit.increment();
+      const message = error.response?.data?.error || error.message || 'Login failed';
       setAuthError(message);
       throw new Error(message);
     }
@@ -72,6 +103,7 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       setIsAuthenticated(false);
       setAuthError(null);
+      secureStorage.clearUserData();
     }
   }, []);
 
@@ -84,7 +116,8 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     restoreSession,
-    getAccessToken
+    getAccessToken,
+    getStoredUserData: secureStorage.getUserData
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

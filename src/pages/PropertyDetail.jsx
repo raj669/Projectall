@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, MapPin, Building2, Phone, Mail, Share2, Loader2,
@@ -28,6 +28,11 @@ export default function PropertyDetail() {
 
   const { properties, addInquiry } = useAdminData();
   const property = properties.find(p => p.id === id);
+
+  // Scroll to top on page load and when property changes
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [id]);
 
   const handleSubmit = (e) => {
     e.preventDefault();

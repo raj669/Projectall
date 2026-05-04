@@ -4,6 +4,9 @@ import { MapPin, Phone, Mail, ArrowRight } from "lucide-react";
 const QUICK_LINKS = [
   { to: "/", label: "Home" },
   { to: "/properties", label: "Browse Properties" },
+  { to: "/buy", label: "Buy Property" },
+  { to: "/sell", label: "Sell Property" },
+  { to: "/heatmap", label: "Heatmap" },
   { to: "/contact", label: "Contact Us" },
   { to: "/report", label: "Market Report" },
 ];

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, Check, X } from 'lucide-react';
+import { AlertCircle, Check, X, Info } from 'lucide-react';
 
 const registerSchema = z.object({
   name: z.string()
@@ -68,27 +68,75 @@ export default function Register() {
   const { register: registerUser, authError } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [serverStatus, setServerStatus] = useState(null);
   const [password, setPassword] = useState('');
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-    watch
+    watch,
+    reset
   } = useForm({
     resolver: zodResolver(registerSchema)
   });
 
   const passwordValue = watch('password') || '';
 
+  // Check if backend is available on component mount
+  useEffect(() => {
+    const checkBackendStatus = async () => {
+      try {
+        const response = await fetch('http://localhost:3000/api/health', { 
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (response.ok) {
+          setServerStatus('online');
+        } else {
+          setServerStatus('offline');
+        }
+      } catch (err) {
+        setServerStatus('offline');
+      }
+    };
+    
+    checkBackendStatus();
+  }, []);
+
   const onSubmit = async (data) => {
     try {
       setError('');
+      
+      if (serverStatus === 'offline') {
+        setError('Backend server is not running. Please start the backend server first: npm run dev (in backend folder)');
+        return;
+      }
+
       setIsLoading(true);
-      await registerUser(data.name, data.email, data.password);
+      
+      // Attempt registration
+      const result = await registerUser(data.name, data.email, data.password);
+      
+      // Store user data securely (without password)
+      const userData = {
+        id: result.user.id,
+        name: data.name,
+        email: data.email,
+        createdAt: new Date().toISOString()
+      };
+      
+      // Store in sessionStorage (cleared when browser closes - more secure than localStorage)
+      sessionStorage.setItem('registrationData', JSON.stringify(userData));
+      localStorage.setItem('userEmail', data.email); // For convenience
+      
+      // Clear form
+      reset();
+      
+      // Navigate to buy page
       navigate('/buy');
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -102,6 +150,15 @@ export default function Register() {
           <CardDescription>Join our real estate community</CardDescription>
         </CardHeader>
         <CardContent>
+          {serverStatus === 'offline' && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                Backend server is offline. Run: <code className="bg-black bg-opacity-20 px-2 py-1 rounded">npm run dev</code> in the backend folder
+              </AlertDescription>
+            </Alert>
+          )}
+          
           {(error || authError) && (
             <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />
@@ -117,7 +174,7 @@ export default function Register() {
                 type="text"
                 placeholder="John Doe"
                 className="mt-1"
-                disabled={isLoading}
+                disabled={isLoading || serverStatus === 'offline'}
               />
               {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>}
             </div>
@@ -129,7 +186,7 @@ export default function Register() {
                 type="email"
                 placeholder="your@email.com"
                 className="mt-1"
-                disabled={isLoading}
+                disabled={isLoading || serverStatus === 'offline'}
               />
               {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>}
             </div>
@@ -141,7 +198,7 @@ export default function Register() {
                 type="password"
                 placeholder="••••••••"
                 className="mt-1"
-                disabled={isLoading}
+                disabled={isLoading || serverStatus === 'offline'}
               />
               {passwordValue && (
                 <div className="mt-3">
@@ -154,7 +211,7 @@ export default function Register() {
             <Button
               type="submit"
               className="w-full bg-blue-600 hover:bg-blue-700"
-              disabled={isLoading}
+              disabled={isLoading || serverStatus === 'offline'}
             >
               {isLoading ? 'Creating account...' : 'Create Account'}
             </Button>
