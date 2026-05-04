@@ -77,7 +77,7 @@ export default function AdminSettings() {
         <p className="text-muted-foreground text-sm">Configure your NepalEstates platform</p>
       </div>
 
-      {/* Platform stats — read only */}
+      {/* Platform stats - read only */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'Total Properties', value: properties.length },
@@ -104,9 +104,9 @@ export default function AdminSettings() {
           <div className="grid grid-cols-2 gap-4">
             <Field label="Currency">
               <select value={local.currency} onChange={e => f('currency', e.target.value)} className={INP}>
-                <option value="NPR">NPR — Nepali Rupee</option>
-                <option value="USD">USD — US Dollar</option>
-                <option value="INR">INR — Indian Rupee</option>
+                <option value="NPR">NPR - Nepali Rupee</option>
+                <option value="USD">USD - US Dollar</option>
+                <option value="INR">INR - Indian Rupee</option>
               </select>
             </Field>
             <Field label="Max Featured Listings" hint="Number of properties that can be featured simultaneously">

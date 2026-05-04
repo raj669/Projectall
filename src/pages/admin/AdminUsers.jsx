@@ -159,7 +159,7 @@ export default function AdminUsers() {
                   <td className="px-4 py-3">
                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_COLORS[u.status]}`}>{u.status}</span>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{u.city || '—'}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{u.city || '-'}</td>
                   <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{u.joinDate}</td>
                   <td className="px-4 py-3 text-muted-foreground">{u.listings}</td>
                   <td className="px-4 py-3">

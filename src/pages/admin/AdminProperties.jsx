@@ -17,7 +17,7 @@ const EMPTY_FORM = {
 };
 
 function fmtPrice(p) {
-  if (!p && p !== 0) return '—';
+  if (!p && p !== 0) return '-';
   const n = Number(p);
   if (n >= 10000000) return `NPR ${(n/10000000).toFixed(1)}Cr`;
   if (n >= 100000) return `NPR ${(n/100000).toFixed(1)}L`;
