@@ -1,14 +1,16 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Building2, MessageSquare, Users, Settings, Bell, Menu, X, Home, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Building2, MessageSquare, Users, Settings, Bell, Menu, X, Home, ChevronRight, ScanSearch } from 'lucide-react';
 import { useState } from 'react';
 import { useAdminData } from '@/lib/AdminDataContext';
+import { useImageValidation } from '@/lib/ImageValidationContext';
 
 const NAV = [
-  { to: '/admin',            label: 'Dashboard',   icon: LayoutDashboard },
-  { to: '/admin/properties', label: 'Properties',  icon: Building2 },
-  { to: '/admin/inquiries',  label: 'Inquiries',   icon: MessageSquare },
-  { to: '/admin/users',      label: 'Users',        icon: Users },
-  { to: '/admin/settings',   label: 'Settings',     icon: Settings },
+  { to: '/admin',                  label: 'Dashboard',        icon: LayoutDashboard },
+  { to: '/admin/properties',       label: 'Properties',       icon: Building2 },
+  { to: '/admin/inquiries',        label: 'Inquiries',        icon: MessageSquare },
+  { to: '/admin/image-validation', label: 'Image Validation', icon: ScanSearch },
+  { to: '/admin/users',            label: 'Users',            icon: Users },
+  { to: '/admin/settings',         label: 'Settings',         icon: Settings },
 ];
 
 export default function AdminLayout() {
@@ -17,6 +19,8 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const { inquiries } = useAdminData();
   const newCount = inquiries.filter(i => i.status === 'New').length;
+  const { counts: valCounts } = useImageValidation();
+  const flaggedCount = valCounts.flagged + valCounts.critical;
 
   const breadcrumb = NAV.find(n => n.to !== '/admin' && location.pathname.startsWith(n.to))
     ?? NAV.find(n => location.pathname === '/admin');
@@ -35,19 +39,29 @@ export default function AdminLayout() {
         <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
           {NAV.map(({ to, label, icon: Icon }) => {
             const active = to === '/admin' ? location.pathname === '/admin' : location.pathname.startsWith(to);
+            const badge = label === 'Inquiries' && newCount > 0
+              ? { count: newCount, color: 'bg-red-500' }
+              : label === 'Image Validation' && flaggedCount > 0
+                ? { count: flaggedCount, color: 'bg-amber-500' }
+                : null;
             return (
               <Link
                 key={to}
                 to={to}
                 title={!open ? label : undefined}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium ${
+                className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium ${
                   active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 }`}
               >
                 <Icon className="w-4 h-4 flex-shrink-0" />
-                {open && <span>{label}</span>}
-                {!open && label === 'Inquiries' && newCount > 0 && (
-                  <span className="absolute left-10 top-1 w-2 h-2 bg-red-500 rounded-full" />
+                {open && <span className="flex-1">{label}</span>}
+                {open && badge && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white ${badge.color}`}>
+                    {badge.count > 99 ? '99+' : badge.count}
+                  </span>
+                )}
+                {!open && badge && (
+                  <span className={`absolute right-1 top-1 w-2 h-2 rounded-full ${badge.color}`} />
                 )}
               </Link>
             );
