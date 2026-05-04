@@ -1,0 +1,16 @@
+{
+  "buildCommand": "npm install && npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm ci",
+  "regions": ["sfo1"],
+  "functions": {
+    "api/**/*.js": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  },
+  "env": {
+    "NODE_OPTIONS": "--max-old-space-size=3000"
+  },
+  "ignoreCommand": "git diff --quiet HEAD~1 HEAD -- ."
+}
