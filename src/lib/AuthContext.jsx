@@ -10,6 +10,11 @@ export const AuthProvider = ({ children }) => {
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [authError, setAuthError] = useState(null);
 
+  const getAuthPayload = (response) => ({
+    token: response?.accessToken || response?.data?.accessToken || null,
+    user: response?.user || response?.data?.user || null
+  });
+
   // Initialize auth on app load
   useEffect(() => {
     restoreSession();
@@ -19,17 +24,31 @@ export const AuthProvider = ({ children }) => {
     try {
       setIsLoadingAuth(true);
       const response = await apiClient.post('/auth/refresh');
-      setAccessToken(response.data.accessToken);
-      setUser(response.data.user);
+      const { token, user: restoredUser } = getAuthPayload(response);
+
+      if (!token || !restoredUser) {
+        throw new Error('Invalid session response');
+      }
+
+      setAccessToken(token);
+      setUser(restoredUser);
       setIsAuthenticated(true);
       setAuthError(null);
       // Store user data securely
-      secureStorage.storeUserData(response.data.user);
+      secureStorage.storeUserData(restoredUser);
     } catch (error) {
-      // No valid session
-      setIsAuthenticated(false);
-      setUser(null);
-      setAccessToken(null);
+      const storedUser = secureStorage.getUserData();
+
+      if (storedUser) {
+        // Keep user signed in locally until they explicitly logout.
+        setUser(storedUser);
+        setIsAuthenticated(true);
+        setAuthError(null);
+      } else {
+        setIsAuthenticated(false);
+        setUser(null);
+        setAccessToken(null);
+      }
     } finally {
       setIsLoadingAuth(false);
     }
@@ -49,15 +68,23 @@ export const AuthProvider = ({ children }) => {
       }
 
       const response = await apiClient.post('/auth/register', { name, email, password });
-      setAccessToken(response.data.accessToken);
-      setUser(response.data.user);
+      
+      // Handle response properly
+      const { token, user } = getAuthPayload(response);
+      
+      if (!token || !user) {
+        throw new Error('Invalid response from server');
+      }
+      
+      setAccessToken(token);
+      setUser(user);
       setIsAuthenticated(true);
       
       // Store user data securely
-      secureStorage.storeUserData(response.data.user);
+      secureStorage.storeUserData(user);
       rateLimit.reset(); // Reset rate limit on success
       
-      return response.data;
+      return { accessToken: token, user };
     } catch (error) {
       rateLimit.increment(); // Track failed attempts
       const message = error.response?.data?.error || error.message || 'Registration failed';
@@ -76,15 +103,23 @@ export const AuthProvider = ({ children }) => {
       }
 
       const response = await apiClient.post('/auth/login', { email, password });
-      setAccessToken(response.data.accessToken);
-      setUser(response.data.user);
+      
+      // Handle response properly
+      const { token, user } = getAuthPayload(response);
+      
+      if (!token || !user) {
+        throw new Error('Invalid response from server');
+      }
+      
+      setAccessToken(token);
+      setUser(user);
       setIsAuthenticated(true);
       
       // Store user data securely
-      secureStorage.storeUserData(response.data.user);
+      secureStorage.storeUserData(user);
       rateLimit.reset();
       
-      return response.data;
+      return { accessToken: token, user };
     } catch (error) {
       rateLimit.increment();
       const message = error.response?.data?.error || error.message || 'Login failed';

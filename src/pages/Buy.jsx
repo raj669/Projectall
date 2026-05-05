@@ -1,16 +1,29 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { Heart } from 'lucide-react';
 import { toast } from 'sonner';
 import apiClient from '@/lib/apiClient';
+import { useAdminData } from '@/lib/AdminDataContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 
 export default function Buy() {
+  const { properties: adminProperties } = useAdminData();
   const [properties, setProperties] = useState([]);
   const [favorites, setFavorites] = useState(new Set());
+  const [localFavorites, setLocalFavorites] = useState(() => {
+    try {
+      const raw = localStorage.getItem('buy_local_favorites');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      return new Set();
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [usingFallbackData, setUsingFallbackData] = useState(false);
   const [filters, setFilters] = useState({
     city: '',
     type: '',
@@ -20,11 +33,79 @@ export default function Buy() {
   });
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, pages: 0 });
+  const limit = 12;
+
+  const activeAdminProperties = useMemo(
+    () => adminProperties.filter((p) => p.admin_status === 'Active' || !p.admin_status),
+    [adminProperties]
+  );
+
+  useEffect(() => {
+    localStorage.setItem('buy_local_favorites', JSON.stringify([...localFavorites]));
+  }, [localFavorites]);
 
   useEffect(() => {
     fetchProperties();
     fetchFavorites();
-  }, [filters, page]);
+  }, [filters, page, activeAdminProperties]);
+
+  const normalizeBackendProperty = (property) => ({
+    id: property._id,
+    title: property.title,
+    city: property.city,
+    type: property.type,
+    status: property.status,
+    price: property.price,
+    bedrooms: property.bedrooms || 0,
+    bathrooms: property.bathrooms || 0,
+    area: property.area || 0,
+    areaUnit: property.areaUnit || property.area_unit || 'sqft',
+    images: property.images || [],
+    source: 'backend'
+  });
+
+  const normalizeAdminProperty = (property) => ({
+    id: property.id,
+    title: property.title,
+    city: property.city,
+    type: property.type,
+    status: property.status,
+    price: property.price,
+    bedrooms: property.bedrooms || 0,
+    bathrooms: property.bathrooms || 0,
+    area: property.area || 0,
+    areaUnit: property.area_unit || property.areaUnit || 'sqft',
+    images: property.images || [],
+    source: 'local'
+  });
+
+  const matchesFilters = (property) => {
+    const cityMatch = !filters.city || property.city?.toLowerCase().includes(filters.city.toLowerCase());
+    const typeMatch = !filters.type || property.type === filters.type;
+    const minMatch = !filters.priceMin || Number(property.price) >= Number(filters.priceMin);
+    const maxMatch = !filters.priceMax || Number(property.price) <= Number(filters.priceMax);
+    const bedroomMatch = !filters.bedrooms || Number(property.bedrooms) >= Number(filters.bedrooms);
+    return cityMatch && typeMatch && minMatch && maxMatch && bedroomMatch;
+  };
+
+  const getFallbackProperties = () => {
+    const filtered = activeAdminProperties
+      .filter(matchesFilters)
+      .map(normalizeAdminProperty);
+
+    const start = (page - 1) * limit;
+    const end = start + limit;
+
+    return {
+      properties: filtered.slice(start, end),
+      pagination: {
+        page,
+        limit,
+        total: filtered.length,
+        pages: Math.max(1, Math.ceil(filtered.length / limit))
+      }
+    };
+  };
 
   const fetchProperties = async () => {
     try {
@@ -32,16 +113,33 @@ export default function Buy() {
       setError('');
       const params = new URLSearchParams({
         page,
-        limit: 12,
+        limit,
         ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v))
       });
 
       const response = await apiClient.get(`/properties?${params}`);
-      setProperties(response.data.properties);
-      setPagination(response.data.pagination);
+
+      // Handle both response formats
+      const props = response.properties || response.data?.properties || [];
+      const pag = response.pagination || response.data?.pagination || { total: 0, pages: 0, page, limit };
+
+      if (props.length > 0) {
+        setProperties(props.map(normalizeBackendProperty));
+        setPagination(pag);
+        setUsingFallbackData(false);
+      } else {
+        const fallback = getFallbackProperties();
+        setProperties(fallback.properties);
+        setPagination(fallback.pagination);
+        setUsingFallbackData(true);
+      }
     } catch (err) {
-      setError('Failed to load properties');
-      console.error(err);
+      const fallback = getFallbackProperties();
+      setProperties(fallback.properties);
+      setPagination(fallback.pagination);
+      setUsingFallbackData(true);
+      setError('Using local listings while backend data is unavailable.');
+      console.error('Failed to load backend properties, using local data:', err);
     } finally {
       setLoading(false);
     }
@@ -50,13 +148,27 @@ export default function Buy() {
   const fetchFavorites = async () => {
     try {
       const response = await apiClient.get('/user/favorites?limit=1000');
-      setFavorites(new Set(response.data.favorites.map(f => f.propertyId._id)));
+      const favs = response.favorites || response.data?.favorites || [];
+      setFavorites(new Set(favs.map((f) => f.propertyId?._id).filter(Boolean)));
     } catch (err) {
       console.error('Failed to fetch favorites:', err);
     }
   };
 
-  const toggleFavorite = async (propertyId) => {
+  const toggleFavorite = async (propertyId, source) => {
+    if (source === 'local') {
+      const next = new Set(localFavorites);
+      if (next.has(propertyId)) {
+        next.delete(propertyId);
+        toast.success('Removed from favorites');
+      } else {
+        next.add(propertyId);
+        toast.success('Added to favorites');
+      }
+      setLocalFavorites(next);
+      return;
+    }
+
     try {
       if (favorites.has(propertyId)) {
         await apiClient.delete(`/user/favorites/${propertyId}`);
@@ -161,15 +273,21 @@ export default function Buy() {
         </Card>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-md mb-4">
+          <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-md mb-4">
             {error}
+          </div>
+        )}
+
+        {usingFallbackData && !error && (
+          <div className="bg-blue-50 border border-blue-200 text-blue-900 px-4 py-3 rounded-md mb-4">
+            Showing available dashboard listings because backend listings are currently empty.
           </div>
         )}
 
         {/* Properties Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {properties.map((property) => (
-            <Card key={property._id} className="overflow-hidden hover:shadow-lg transition">
+            <Card key={property.id} className="overflow-hidden hover:shadow-lg transition">
               <div className="relative h-48 bg-gray-200 overflow-hidden">
                 {property.images?.[0] ? (
                   <img
@@ -181,11 +299,11 @@ export default function Buy() {
                   <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400" />
                 )}
                 <button
-                  onClick={() => toggleFavorite(property._id)}
+                  onClick={() => toggleFavorite(property.id, property.source)}
                   className="absolute top-3 right-3 bg-white rounded-full p-2 hover:bg-gray-100 transition"
                 >
                   <Heart
-                    className={`h-5 w-5 ${favorites.has(property._id) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`}
+                    className={`h-5 w-5 ${(property.source === 'local' ? localFavorites.has(property.id) : favorites.has(property.id)) ? 'fill-red-500 text-red-500' : 'text-gray-400'}`}
                   />
                 </button>
               </div>
@@ -199,17 +317,26 @@ export default function Buy() {
                   <div className="flex gap-4 text-xs">
                     <span>{property.bedrooms} Beds</span>
                     <span>{property.bathrooms} Baths</span>
-                    <span>{property.area} {property.areaUnit}</span>
+                    <span>{property.area} {property.areaUnit || 'sqft'}</span>
                   </div>
                 </div>
 
-                <div className="flex gap-2">
-                  <span className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">
-                    {property.type}
-                  </span>
-                  <span className="inline-block px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
-                    {property.status}
-                  </span>
+                <div className="flex gap-2 items-center justify-between">
+                  <div className="flex gap-2">
+                    <span className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">
+                      {property.type}
+                    </span>
+                    <span className="inline-block px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
+                      {property.status}
+                    </span>
+                  </div>
+                  <Link to={`/properties/${property.id}`}>
+                    <Button size="sm" variant="outline">View Details</Button>
+                  </Link>
+                </div>
+
+                <div className="mt-3 text-xs text-gray-500">
+                  {property.source === 'local' ? 'Source: Dashboard listings' : 'Source: Backend listings'}
                 </div>
               </CardContent>
             </Card>
